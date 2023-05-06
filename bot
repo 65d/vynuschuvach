@@ -1,0 +1,145 @@
+import telegram
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import datetime
+
+
+TOKEN = ''
+
+
+def handle_info_command(update, context):
+    user_id = update.message.reply_to_message.from_user.id
+    user_name = update.message.reply_to_message.from_user.first_name
+
+    # if user_id in blocked_users and blocked_users[user_id]:
+    #     context.bot.send_message(chat_id=update.effective_chat.id, text='Цей користувач заблокований!')
+    # else:
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f'Привіт, {user_name}!')
+
+
+def handle_report_command(update, context):
+    user_id = update.message.reply_to_message.from_user.id
+    user_name = update.message.reply_to_message.from_user.first_name
+
+    # if user_id in blocked_users and blocked_users[user_id]:
+    #     context.bot.send_message(chat_id=update.effective_chat.id, text='Цей користувач заблокований!')
+    # else:
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f'Дякуємо за повідомлення, ми зробимо все необхідне.')#Привіт, {user_name}!
+
+def handle_ban_command(update, context):
+
+    chat_member = context.bot.get_chat_member(update.effective_chat.id, update.message.from_user.id)
+    if not chat_member.status in ('administrator', 'creator'):
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="You don't have permission to use this command.")
+        return
+    user_id = update.message.reply_to_message.from_user.id
+    context.bot.ban_chat_member(chat_id=update.effective_chat.id, user_id=user_id)
+
+
+
+def handle_unban_command(update, context):
+    chat_member = context.bot.get_chat_member(update.effective_chat.id, update.message.from_user.id)
+    if not chat_member.status in ('administrator', 'creator'):
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="You don't have permission to use this command.")
+        return
+    user_id = update.message.reply_to_message.from_user.id
+    context.bot.unban_chat_member(chat_id=update.effective_chat.id, user_id=user_id)
+
+
+def handle_mute10_command(update, context):
+    chat_member = context.bot.get_chat_member(update.effective_chat.id, update.message.from_user.id)
+    if not chat_member.status in ('administrator', 'creator'):
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="You don't have permission to use this command.")
+        return
+    chat_id = update.effective_chat.id
+
+
+    if context.args is None or len(context.args) != 1:
+        context.bot.send_message(chat_id=chat_id, text='Не вказано тривалість блокування повідомлень')
+        return
+
+    duration_str = context.args[0]
+    duration = 0
+
+    try:
+        duration = int(duration_str[:-1])
+        time_unit = duration_str[-1].lower()
+    except ValueError:
+        context.bot.send_message(chat_id=chat_id, text='Невірний формат тривалості блокування повідомлень')
+        return
+
+    if time_unit not in ['m', 'h', 'd']:
+        context.bot.send_message(chat_id=chat_id, text='Невірна одиниця часу. Підтримуються: m, h, d')
+        return
+
+    if time_unit == 'm':
+        duration_sec = duration * 60
+    elif time_unit == 'h':
+        duration_sec = duration * 60 * 60
+    elif time_unit == 'd':
+        duration_sec = duration * 24 * 60 * 60
+
+    until_date = datetime.datetime.now() + datetime.timedelta(seconds=duration_sec)
+
+
+    user_id = update.message.reply_to_message.from_user.id
+    user_name = update.message.reply_to_message.from_user.first_name
+    context.bot.restrict_chat_member(
+        chat_id=update.effective_chat.id,
+        user_id=user_id,
+        permissions=telegram.ChatPermissions(
+            can_send_messages=False,
+            can_send_media_messages=False,
+            can_send_other_messages=False
+        ),
+        until_date=until_date
+    )
+
+    context.bot.send_message(chat_id=chat_id, text=f'{user_name} заблоковано до {until_date}')
+
+
+def handle_unmute_command(update, context):
+    chat_member = context.bot.get_chat_member(update.effective_chat.id, update.message.from_user.id)
+    if not chat_member.status in ('administrator', 'creator'):
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="You don't have permission to use this command.")
+        return
+    user_id = update.message.reply_to_message.from_user.id
+    context.bot.restrict_chat_member(
+        chat_id=update.effective_chat.id,
+        user_id=user_id,
+        permissions=telegram.ChatPermissions(
+            can_send_messages=True,
+            can_send_media_messages=True,
+            can_send_other_messages=True
+        )
+    )
+
+
+def main():
+    updater = Updater(TOKEN)
+    dispatcher = updater.dispatcher
+    info_handler = CommandHandler('info', handle_info_command)
+    ban_handler = CommandHandler('ban', handle_ban_command)
+    unban_handler = CommandHandler('unban', handle_unban_command)
+    # mute10_handler = CommandHandler('ro', handle_mute10_command)
+
+    mute10_handler = CommandHandler('ro', handle_mute10_command)
+
+    report_handler = MessageHandler(Filters.regex(r'!report'), handle_report_command)
+    dispatcher.add_handler(report_handler)
+
+    um_handler = CommandHandler('um', handle_unmute_command)
+    dispatcher.add_handler(info_handler)
+    dispatcher.add_handler(ban_handler)
+    dispatcher.add_handler(unban_handler)
+    dispatcher.add_handler(mute10_handler)
+    dispatcher.add_handler(um_handler)
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
